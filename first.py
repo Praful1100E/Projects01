@@ -13,7 +13,6 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Models
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -90,18 +89,16 @@ class Schedule(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Initialize database and seed data at app startup
 def setup_database():
-    """Create tables and seed initial data."""
     with app.app_context():
         db.create_all()
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', role='admin')
             admin.set_password('admin123')
             db.session.add(admin)
-            faculty1 = User(username='faculty1', role='faculty')
-            faculty1.set_password('faculty123')
-            db.session.add(faculty1)
+            faculty_user = User(username='faculty1', role='faculty')
+            faculty_user.set_password('faculty123')
+            db.session.add(faculty_user)
             depthead = User(username='depthead', role='dept_head')
             depthead.set_password('dept123')
             db.session.add(depthead)
@@ -113,7 +110,6 @@ def setup_database():
                 ])
             db.session.commit()
 
-# Call database setup before running app
 setup_database()
 
 BASE_TEMPLATE = '''
@@ -125,18 +121,20 @@ BASE_TEMPLATE = '''
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body { background:#121212; color:#00ffff; font-family: Arial, sans-serif; margin:0; padding:0; }
-        nav { background:#222; padding:0.5em 1em; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
-        nav a { color:#00ced1; margin-left:1em; text-decoration:none; }
+        nav { background:#222; padding:0.5em 1em; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8em; }
+        nav a { color:#00ced1; text-decoration:none; font-weight:bold; }
         nav a:hover { color:#009999; }
         .container { max-width:900px; margin:2em auto; padding:1em; background:#222; border-radius:8px; }
-        input, select, textarea, button { background:#222; color:#00ffff; border:1px solid #00ced1; padding:0.4em; margin-top:0.5em; width:100%; }
-        button { background:#00ced1; border:none; cursor:pointer; margin-top:1em; }
+        input, select, textarea, button { background:#222; color:#00ffff; border:1px solid #00ced1; padding:0.6em; margin-top:0.5em; width:100%; box-sizing:border-box; }
+        button { background:#00ced1; border:none; cursor:pointer; margin-top:1em; font-weight:bold; }
         button:hover { background:#009999; }
         table { width:100%; border-collapse:collapse; margin-top:1em; }
         th, td { border:1px solid #00ced1; padding:0.5em; text-align:left; }
-        th { background:#009999; }
-        .flash { background:#00ffff; color:#000; padding:1em; border-radius:6px; margin-bottom:1em; }
-        .logout { margin-left:auto; }
+        th { background:#009999; color:#000; font-weight:bold; }
+        .flash-error { background:#ff4d4d; color:#fff; padding:1em; margin-bottom:1em; border-radius:6px; }
+        .flash-success { background:#00cc66; color:#000; padding:1em; margin-bottom:1em; border-radius:6px; }
+        .admin-only { color:#ff4d4d; font-weight:bold; }
+        .lunch-break { background:#cc0000; color:#fff; font-weight:bold; }
         @media (max-width: 600px) {
             nav { flex-direction:column; align-items:flex-start; }
             nav a { margin:0.3em 0; }
@@ -151,41 +149,34 @@ BASE_TEMPLATE = '''
             td:nth-of-type(4):before { content:"Faculty"; }
             td:nth-of-type(5):before { content:"Classroom"; }
         }
-        .lunch-break { background:#cc0000; color:#00ffff; font-weight:bold; }
     </style>
 </head>
 <body>
 <nav>
     <div><strong>Smart Timetable</strong></div>
     <div>
-    {% if current_user.is_authenticated %}
-        <a href="{{ url_for('dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('view_data') }}">View Data</a>
-        {% if current_user.role == 'admin' %}
-        <a href="{{ url_for('add_entity', entity='faculty') }}">Add Faculty</a>
-        <a href="{{ url_for('add_entity', entity='classroom') }}">Add Classroom</a>
-        <a href="{{ url_for('add_entity', entity='subject') }}">Add Subject</a>
-        <a href="{{ url_for('add_entity', entity='batch') }}">Add Batch</a>
-        <a href="{{ url_for('add_lunchbreak') }}">Add Lunch Breaks</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/view_data">View Data</a>
+        {% if current_user.is_authenticated and current_user.role == "admin" %}
+            <a href="/add_entity/faculty" class="admin-only">Add Faculty</a>
+            <a href="/add_entity/classroom" class="admin-only">Add Classroom</a>
+            <a href="/add_entity/subject" class="admin-only">Add Subject</a>
+            <a href="/add_entity/batch" class="admin-only">Add Batch</a>
+            <a href="/add_lunchbreak" class="admin-only">Add Lunch Break</a>
         {% endif %}
-        <a href="{{ url_for('generate_timetable') }}">Generate Timetable</a>
-        <a href="{{ url_for('view_timetable') }}">View Timetable</a>
-        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
-    {% else %}
-        <a href="{{ url_for('login') }}">Login</a>
-    {% endif %}
+        <a href="/generate_timetable">Generate Timetable</a>
+        <a href="/view_timetable">View Timetable</a>
+        {% if current_user.is_authenticated %}
+            <a href="/logout">Logout</a>
+        {% else %}
+            <a href="/login">Login</a>
+        {% endif %}
     </div>
 </nav>
 <div class="container">
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <div class="flash">
-          {% for message in messages %}
-            <div>{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+    {% for category, message in get_flashed_messages(with_categories=True) %}
+        <div class="flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
     {{ content|safe }}
 </div>
 </body>
@@ -198,7 +189,7 @@ def home():
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
-@app.route('/login', methods=['GET','POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
@@ -207,15 +198,16 @@ def login():
         if user and user.check_password(request.form['password']):
             login_user(user)
             return redirect(url_for('dashboard'))
-        flash('Invalid username or password')
-    return render_template_string(BASE_TEMPLATE, title='Login', content='''
+        flash('Invalid username or password', 'error')
+    login_form = '''
     <h2>Login</h2>
     <form method="post">
         <label>Username</label><input name="username" required />
         <label>Password</label><input type="password" name="password" required />
         <button type="submit">Login</button>
     </form>
-    ''')
+    '''
+    return render_template_string(BASE_TEMPLATE, title='Login', content=login_form)
 
 @app.route('/logout')
 @login_required
@@ -226,24 +218,27 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template_string(BASE_TEMPLATE, title="Dashboard",
-        content=f"""
-            <p>Welcome, {current_user.username}!</p>
-            <p>Your role: {current_user.role}</p>
-            <a href="/add_entity/faculty">Add Faculty</a><br>
-            <a href="/add_entity/subject">Add Subject</a><br>
-            <a href="/add_entity/classroom">Add Classroom</a><br>
-            <a href="/add_entity/batch">Add Batch</a><br>
-            <a href="/add_entity/lunch_break">Add Lunch Breaks</a><br>
-            <a href="/view_timetable">View Timetable</a><br>
-            <a href="/generate_timetable">Generate Timetable</a><br>
-        """)
+    links = []
+    if current_user.role == 'admin':
+        links.append('<p><a href="/add_entity/faculty" class="admin-only">Add Faculty</a></p>')
+        links.append('<p><a href="/add_entity/classroom" class="admin-only">Add Classroom</a></p>')
+        links.append('<p><a href="/add_entity/subject" class="admin-only">Add Subject</a></p>')
+        links.append('<p><a href="/add_entity/batch" class="admin-only">Add Batch</a></p>')
+        links.append('<p><a href="/add_lunchbreak" class="admin-only">Add Lunch Break</a></p>')
+    dashboard_content = f'''
+    <p>Welcome, <strong>{current_user.username}</strong>!</p>
+    <p>Your role: <span class="{'admin-only' if current_user.role == 'admin' else ''}">{current_user.role}</span></p>
+    {"".join(links)}
+    <p><a href="/view_timetable">View Timetable</a></p>
+    <p><a href="/generate_timetable">Generate Timetable</a></p>
+    '''
+    return render_template_string(BASE_TEMPLATE, title='Dashboard', content=dashboard_content)
 
-@app.route('/add_entity/<entity>', methods=['GET','POST'])
+@app.route('/add_entity/<entity>', methods=['GET', 'POST'])
 @login_required
 def add_entity(entity):
     if current_user.role != 'admin':
-        flash('Access denied')
+        flash('Only admins can add or edit data.', 'error')
         return redirect(url_for('dashboard'))
     model_map = {
         'faculty': Faculty,
@@ -253,11 +248,13 @@ def add_entity(entity):
     }
     model = model_map.get(entity)
     if not model:
-        flash('Unknown entity')
+        flash('Invalid entity type.', 'error')
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
         try:
             if entity == 'faculty':
+                if not Department.query.get(int(request.form['department_id'])):
+                    raise ValueError('Department does not exist.')
                 item = Faculty(
                     name=request.form['name'],
                     department_id=int(request.form['department_id']),
@@ -271,6 +268,8 @@ def add_entity(entity):
                     room_type=request.form['room_type']
                 )
             elif entity == 'subject':
+                if not Department.query.get(int(request.form['department_id'])):
+                    raise ValueError('Department does not exist.')
                 item = Subject(
                     name=request.form['name'],
                     department_id=int(request.form['department_id']),
@@ -285,31 +284,77 @@ def add_entity(entity):
                 )
             db.session.add(item)
             db.session.commit()
-            flash(f'{entity.capitalize()} added successfully')
+            flash(f'{entity.capitalize()} added successfully.', 'success')
             return redirect(url_for('add_entity', entity=entity))
         except Exception as e:
-            flash(str(e))
+            flash(f'Error adding {entity}: {str(e)}', 'error')
     dept_options = ''
     if entity in ('faculty', 'subject'):
-        dept_options = ''.join(f'<option value="{d.id}">{d.name}</option>' for d in Department.query.all())
+        depts = Department.query.order_by(Department.name).all()
+        if not depts:
+            flash('No departments exist. Add departments first.', 'error')
+            return redirect(url_for('dashboard'))
+        dept_options = ''.join(f'<option value="{d.id}">{d.name}</option>' for d in depts)
     fields = {
-        'faculty': [('name','text'), ('department_id','select',dept_options), ('max_load','number'), ('availability','text')],
+        'faculty': [('name','text'), ('department_id','select',dept_options), ('max_load','number',18), ('availability','text')],
         'classroom': [('name','text'), ('capacity','number'), ('room_type','text')],
         'subject': [('name','text'), ('department_id','select',dept_options), ('credits','number'), ('weekly_classes','number')],
         'batch': [('program','text'), ('semester','number'), ('students','number')]
     }.get(entity, [])
     rows = ''
     for field in fields:
-        if len(field) == 3:  # select
-            rows += f'<label>{field.replace("_"," ").title()}</label><select name="{field}" required>{field}</select>'
+        if len(field) == 3:
+            rows += f'<label>{field[0].replace("_"," ").title()}</label><select name="{field[0]}"{" required" if field[0] in ("department_id", "name") else ""}>{field[2] if field[1] == "select" else ""}</select>'
         else:
-            rows += f'<label>{field.replace("_"," ").title()}</label><input name="{field}" type="{field}" required />'
+            rows += f'<label>{field[0].replace("_"," ").title()}</label><input name="{field[0]}" type="{field[1]}" value="{field[2] if len(field) > 2 else ""}"{" required" if field[0] in ("name", "department_id", "capacity", "room_type", "credits", "weekly_classes", "program", "semester", "students") else ""} />'
     content = f'''
     <h2>Add {entity.capitalize()}</h2>
     <form method="post">{rows}<button type="submit">Add</button></form>
     <p><a href="/dashboard">Back to Dashboard</a></p>
     '''
     return render_template_string(BASE_TEMPLATE, title=f'Add {entity.capitalize()}', content=content)
+
+@app.route('/add_lunchbreak', methods=['GET', 'POST'])
+@login_required
+def add_lunchbreak():
+    if current_user.role != 'admin':
+        flash('Only admins can add or edit lunch breaks.', 'error')
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        try:
+            batch = Batch.query.get(int(request.form['batch_id']))
+            if not batch:
+                raise ValueError('Batch does not exist.')
+            lb = LunchBreak(
+                batch_id=int(request.form['batch_id']),
+                day=request.form['day'],
+                start_time=request.form['start_time'],
+                end_time=request.form['end_time']
+            )
+            db.session.add(lb)
+            db.session.commit()
+            flash('Lunch break added successfully.', 'success')
+            return redirect(url_for('add_lunchbreak'))
+        except Exception as e:
+            flash(f'Error adding lunch break: {str(e)}', 'error')
+    batch_options = ''.join(f'<option value="{b.id}">{b.program} (Sem {b.semester})</option>' for b in Batch.query.order_by(Batch.program, Batch.semester))
+    if not batch_options:
+        flash('No batches exist. Add a batch first.', 'error')
+        return redirect(url_for('dashboard'))
+    content = f'''
+    <h2>Add Lunch Break</h2>
+    <form method="post">
+        <label>Batch</label><select name="batch_id" required>{batch_options}</select>
+        <label>Day</label><select name="day" required>
+            <option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option><option>Fri</option>
+        </select>
+        <label>Start Time</label><input name="start_time" type="time" required />
+        <label>End Time</label><input name="end_time" type="time" required />
+        <button type="submit">Add Lunch Break</button>
+    </form>
+    <p><a href="/dashboard">Back to Dashboard</a></p>
+    '''
+    return render_template_string(BASE_TEMPLATE, title='Add Lunch Break', content=content)
 
 @app.route('/view_data')
 @login_required
@@ -335,56 +380,21 @@ def view_data():
             content += '<p>No data</p>'
     return render_template_string(BASE_TEMPLATE, title='View Data', content=content)
 
-@app.route('/add_lunchbreak', methods=['GET','POST'])
-@login_required
-def add_lunchbreak():
-    if current_user.role != 'admin':
-        flash('Access denied')
-        return redirect(url_for('dashboard'))
-    if request.method == 'POST':
-        batch_id = int(request.form['batch_id'])
-        day = request.form['day']
-        start_time = request.form['start_time']
-        end_time = request.form['end_time']
-        lb = LunchBreak(batch_id=batch_id, day=day, start_time=start_time, end_time=end_time)
-        db.session.add(lb)
-        db.session.commit()
-        flash('Lunch break added successfully')
-        return redirect(url_for('add_lunchbreak'))
-    batch_options = ''.join(f'<option value="{b.id}">{b.program} (Sem {b.semester})</option>' for b in Batch.query.all())
-    content = f'''
-    <h2>Add Lunch Break</h2>
-    <form method="post">
-        <label>Batch</label>
-        <select name="batch_id" required>{batch_options}</select>
-        <label>Day</label>
-        <select name="day" required>
-            <option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option><option>Fri</option>
-        </select>
-        <label>Start Time</label><input name="start_time" required />
-        <label>End Time</label><input name="end_time" required />
-        <button type="submit">Add Lunch Break</button>
-    </form>
-    <p><a href="/dashboard">Back to Dashboard</a></p>
-    '''
-    return render_template_string(BASE_TEMPLATE, title='Add Lunch Break', content=content)
-
 @app.route('/generate_timetable')
 @login_required
 def generate_timetable():
     if current_user.role != 'admin':
-        flash('Access denied')
+        flash('Only admins can generate timetables.', 'error')
         return redirect(url_for('dashboard'))
     model = cp_model.CpModel()
     days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
     hours = ['9-10am', '10-11am', '11-12pm', '1-2pm', '2-3pm']
-    batches = Batch.query.all()
-    subjects = Subject.query.all()
-    faculty = Faculty.query.all()
-    classrooms = Classroom.query.all()
+    batches = Batch.query.order_by(Batch.program, Batch.semester).all()
+    subjects = Subject.query.order_by(Subject.name).all()
+    faculty = Faculty.query.order_by(Faculty.name).all()
+    classrooms = Classroom.query.order_by(Classroom.name).all()
     lunchbreaks = LunchBreak.query.all()
 
-    # Create variables
     timetable_vars = {}
     for b in batches:
         for s in subjects:
@@ -392,7 +402,7 @@ def generate_timetable():
                 for h in hours:
                     for c in classrooms:
                         for f in faculty:
-                            if f.department_id == s.department_id:  # dept match
+                            if f.department_id == s.department_id:
                                 timetable_vars[(b.id, s.id, d, h, c.id, f.id)] = model.NewBoolVar(f'b{b.id}_s{s.id}_d{d}_h{h}_c{c.id}_f{f.id}')
 
     # Each subject must meet weekly_classes times per batch
@@ -441,9 +451,9 @@ def generate_timetable():
                     time_slot=hour
                 ))
         db.session.commit()
-        flash('Timetable generated successfully')
+        flash('Timetable generated successfully.', 'success')
     else:
-        flash('No feasible schedule found with current constraints')
+        flash('No feasible schedule found with current constraints.', 'error')
     return redirect(url_for('view_timetable'))
 
 @app.route('/view_timetable')
@@ -452,7 +462,7 @@ def view_timetable():
     schedules = Schedule.query.all()
     content = '<h2>Generated Timetable</h2>'
     if not schedules:
-        content += '<p>No timetable generated yet</p>'
+        content += '<p>No timetable generated yet.</p>'
     else:
         timetable = {}
         for s in schedules:
@@ -461,7 +471,7 @@ def view_timetable():
                 timetable[batch_name] = []
             timetable[batch_name].append(s)
         for batch in timetable:
-            batch_id = Batch.query.filter_by(program=batch.split(' (')).first().id
+            batch_id = Batch.query.filter_by(program=batch.split(' (')[0]).first().id
             lunches = LunchBreak.query.filter_by(batch_id=batch_id).all()
             lunch_slots = {(lb.day, lb.start_time) for lb in lunches}
             timetable[batch] = sorted(
@@ -471,8 +481,8 @@ def view_timetable():
             content += f'<h3>{batch}</h3><table><thead><tr><th>Day</th><th>Time</th><th>Subject</th><th>Faculty</th><th>Classroom</th></tr></thead><tbody>'
             for sch in timetable[batch]:
                 is_lunch = (sch.day, sch.time_slot) in lunch_slots
-                row_class = 'class="lunch-break"' if is_lunch else ''
-                content += f'<tr {row_class}><td>{sch.day}</td><td>{sch.time_slot}</td><td>{sch.subject.name}</td><td>{sch.faculty.name}</td><td>{sch.classroom.name}</td></tr>'
+                row_class = ' class="lunch-break"' if is_lunch else ''
+                content += f'<tr{row_class}><td>{sch.day}</td><td>{sch.time_slot}</td><td>{sch.subject.name}</td><td>{sch.faculty.name}</td><td>{sch.classroom.name}</td></tr>'
             content += '</tbody></table>'
     content += '<p><a href="/dashboard">Back to Dashboard</a></p>'
     return render_template_string(BASE_TEMPLATE, title='Timetable', content=content)
