@@ -1,0 +1,11 @@
+- [x] Create excel_counter.py with Flask app for counting name repetitions in Excel
+- [x] Run the Flask app to test functionality
+- [x] Test with sample.xlsx to verify counting works
+- [x] Update app to show detailed occurrences with sheet, row, column, and surrounding cells
+- [x] Test the updated display features
+- [x] Create excel_multi_column_names.py to analyze names appearing in multiple columns
+- [x] Run the new app and test with sample.xlsx
+- [x] Create company_sector_counter.py based on the provided Excel structure
+- [x] Run the company sector counter app and test with the Excel file
+- [x] Fix the counting logic to count per row instead of per cell to avoid duplicates
+- [x] Apply dark theme with effects to company_sector_counter.py
